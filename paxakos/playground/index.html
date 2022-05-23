@@ -141,7 +141,7 @@
 
       .node {
         display: flex;
-        background: grey;
+        background-color: grey;
         justify-content: center;
         align-items: center;
         color: #000;
@@ -150,11 +150,29 @@
       }
 
       .node--active {
-        background: deepskyblue;
+        background-color: deepskyblue;
+      }
+
+      .node--disoriented {
+        background-image: linear-gradient(
+          135deg,
+          #a3a3a3 20%,
+          transparent 20%,
+          transparent 50%,
+          #a3a3a3 50%,
+          #a3a3a3 70%,
+          transparent 70%,
+          transparent 100%
+        );
+        background-size: 20px 20px;
+      }
+
+      .node--inconsistent {
+        box-shadow: 0px 0px 15px 10px rgba(192, 32, 32, 0.65);
       }
 
       .node--terminated {
-        background: rgb(153, 69, 69);
+        background-color: rgb(153, 69, 69);
       }
 
       .node[data-leader]::after {
@@ -371,6 +389,10 @@
 
       .timeline__action--reconfigure::after {
         content: '🔧';
+      }
+
+      .timeline__action--verify::after {
+        content: '☑️';
       }
 
       .timeline__current-round {
@@ -591,12 +613,16 @@
 
         <dt>Round</dt>
         <dd id="round" class="node__round"></dd>
+
+        <dt>Inconsistency</dt>
+        <dd id="inconsistency" class="node__inconsistency"></dd>
       </dl>
 
       <div style="margin: 1rem 0">
         <button id="shut-down">Shut Down</button>
         <button id="shoot-down">Shoot Down</button>
         <button id="take-snapshot">Take Snapshot</button>
+        <button id="introduce-inconsistency">Introduce Inconsistency</button>
       </div>
 
       <h3>Snapshots</h3>
@@ -605,6 +631,7 @@
     <template id="tpl-snapshot">
       <li>
         Round <span id="round"></span>, taken by node <span id="node"></span>
+        <button id="install">Install</button>
         <button id="recover">Recover</button>
         <button id="resume" disabled>Resume</button>
       </li>
@@ -711,7 +738,7 @@
     </template>
   </body>
   <script type="module">
-    import init, { Cluster, ClusterBuilder, Network, Nodes } from './playground_wasm.js';
+    import init, { Cluster, ClusterBuilder, Network, Nodes } from './playground.js';
 
     const ROUND_WIDTH = 15;
 
@@ -762,6 +789,7 @@
           fill: {},
           'ensure-leadership': {},
           reconfigure: {},
+          verify: {},
         };
 
         window.onresize = updateRounds;
@@ -867,6 +895,13 @@
             showNodeAction(nodeId, 'heartbeat');
           },
 
+          inconsistencyChanged(nodeId, newInconsistency) {
+            const node = nodesById[nodeId];
+            node.inconsistency = newInconsistency;
+
+            node.element.classList.toggle('node--inconsistent', !!newInconsistency);
+          },
+
           newLeader(nodeId, leaderId) {
             const node = nodesById[nodeId];
 
@@ -891,16 +926,20 @@
           },
 
           packet(from, to, delay, dropped, response) {
-            ++links[from][to].packets;
-            ++totalPackets;
+            const link = links[from][to];
 
-            animatePacket({
-              from,
-              to,
-              delay,
-              dropped,
-              response,
-            });
+            if (link) {
+              ++link.packets;
+              ++totalPackets;
+
+              animatePacket({
+                from,
+                to,
+                delay,
+                dropped,
+                response,
+              });
+            }
           },
 
           packetLossUpdated(from, to, packetLoss) {
@@ -919,15 +958,25 @@
             node.element.classList.toggle('node--active', active);
           },
 
-          reconfigured(round, newConfiguration) {
+          reconfigured(nodeId, round, newConfiguration) {
+            const node = nodesById[nodeId];
+
+            node.round = round;
+
             if (!currentConfiguration || round === maxRound) {
               currentConfiguration = newConfiguration;
             }
+
+            updateRounds();
+            updateBindings();
           },
 
           statusChanged(nodeId, newStatus) {
             const node = nodesById[nodeId];
             node.status = newStatus;
+
+            node.element.classList.toggle('node--disoriented', newStatus === 'Disoriented');
+            node.element.classList.toggle('node--terminated', newStatus === 'Shut Down' || newStatus === 'Crashed');
 
             updateBindings();
           },
@@ -1020,6 +1069,7 @@
             round: 0,
             status: 'Unknown',
             handle: null,
+            inconsistency: null,
           };
 
           nodes.push(node);
@@ -1088,18 +1138,22 @@
           const {
             status,
             round,
+            inconsistency,
             shutDown,
             shootDown,
             takeSnapshot,
+            introduceInconsistency,
             snapshots: snapshotsEl,
           } = instantiateTemplate('tpl-status', (e) => controls.appendChild(e));
 
           shutDown.bindDisabled(() => !node.handle);
           shootDown.bindDisabled(() => !node.handle);
           takeSnapshot.bindDisabled(() => !node.handle);
+          introduceInconsistency.bindDisabled(() => !node.handle);
 
           status.bindTextContent(() => node.status);
           round.bindTextContent(() => node.round);
+          inconsistency.bindTextContent(() => node.inconsistency || 'None');
 
           shutDown.addEventListener('click', () => {
             node.handle.shutDown();
@@ -1110,6 +1164,7 @@
             node.handle = null;
           });
           takeSnapshot.addEventListener('click', () => node.handle.takeSnapshot());
+          introduceInconsistency.addEventListener('click', () => node.handle.introduceInconsistency());
 
           snapshots.forEach((s, i) => {
             instantiateSnapshotTemplate(node, snapshotsEl.element, i, s);
@@ -1120,6 +1175,7 @@
           const {
             round,
             node: nodeEl,
+            install,
             recover,
             resume,
           } = instantiateTemplate('tpl-snapshot', (e) => snapshotsEl.insertBefore(e, snapshotsEl.children[index]));
@@ -1127,18 +1183,20 @@
           nodeEl.textContent = nodesById[snapshot.nodeId].name;
           round.textContent = snapshot.round;
 
+          install.bindDisabled(() => !node.handle || (node.status !== 'Disoriented' && node.round > snapshot.round));
           recover.bindDisabled(() => !!node.handle);
           if (node.id === snapshot.nodeId && node.round == snapshot.round) {
             resume.bindDisabled(() => !!node.handle || !snapshot.resumable);
           }
 
+          install.addEventListener('click', () => {
+            node.handle.installSnapshot(snapshot);
+          });
           recover.addEventListener('click', () => {
             node.handle = cluster.recoverNode(node.identity, snapshot);
-            updateBindings();
           });
           resume.addEventListener('click', () => {
             node.handle = cluster.resumeNode(node.identity, snapshot);
-            updateBindings();
           });
         }
 
