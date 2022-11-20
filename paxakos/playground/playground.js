@@ -276,7 +276,7 @@ function notDefined(what) { return () => { throw new Error(`${what} is not defin
 function getArrayU8FromWasm0(ptr, len) {
     return getUint8Memory0().subarray(ptr / 1, ptr / 1 + len);
 }
-function __wbg_adapter_130(arg0, arg1, arg2, arg3) {
+function __wbg_adapter_132(arg0, arg1, arg2, arg3) {
     _assertNum(arg0);
     _assertNum(arg1);
     wasm.wasm_bindgen__convert__closures__invoke2_mut__hb49782275d648b8e(arg0, arg1, addHeapObject(arg2), addHeapObject(arg3));
@@ -993,6 +993,9 @@ async function init(input) {
             wasm.__wbindgen_free(arg2, arg3);
         }
     }, arguments) };
+    imports.wbg.__wbg_verify_fd5a92bf23270246 = function() { return logError(function (arg0, arg1) {
+        getObject(arg0).verify(arg1 >>> 0);
+    }, arguments) };
     imports.wbg.__wbindgen_cb_drop = function(arg0) {
         const obj = takeObject(arg0).original;
         if (obj.cnt-- == 1) {
@@ -1081,7 +1084,7 @@ async function init(input) {
                 const a = state0.a;
                 state0.a = 0;
                 try {
-                    return __wbg_adapter_130(a, state0.b, arg0, arg1);
+                    return __wbg_adapter_132(a, state0.b, arg0, arg1);
                 } finally {
                     state0.a = a;
                 }
@@ -1170,12 +1173,12 @@ async function init(input) {
         const ret = wasm.memory;
         return addHeapObject(ret);
     };
-    imports.wbg.__wbindgen_closure_wrapper12249 = function() { return logError(function (arg0, arg1, arg2) {
-        const ret = makeMutClosure(arg0, arg1, 334, __wbg_adapter_22);
+    imports.wbg.__wbindgen_closure_wrapper12257 = function() { return logError(function (arg0, arg1, arg2) {
+        const ret = makeMutClosure(arg0, arg1, 341, __wbg_adapter_22);
         return addHeapObject(ret);
     }, arguments) };
-    imports.wbg.__wbindgen_closure_wrapper12656 = function() { return logError(function (arg0, arg1, arg2) {
-        const ret = makeMutClosure(arg0, arg1, 342, __wbg_adapter_25);
+    imports.wbg.__wbindgen_closure_wrapper12664 = function() { return logError(function (arg0, arg1, arg2) {
+        const ret = makeMutClosure(arg0, arg1, 349, __wbg_adapter_25);
         return addHeapObject(ret);
     }, arguments) };
 
